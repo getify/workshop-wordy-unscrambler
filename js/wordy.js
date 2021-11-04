@@ -6,17 +6,66 @@ export default {
 
 // ****************************
 
+var dict = {};
+var isWord = Symbol("is-word");
+
 function loadWords(wordList) {
-	// TODO: implement a data structure for the array
-	// `wordList` parameter; return the number
-	// of entries inserted into the data structure
-	return 0;
+	var nodeCount = 0;
+
+	// reset a previously loaded dictionary?
+	if (Object.keys(dict).length > 0) {
+		dict = {};
+	}
+
+	// construct the dictionary as a trie
+	for (let word of wordList) {
+		// traverse down the trie (from the root), creating nodes
+		// as necessary
+		let node = dict;
+		for (let letter of word) {
+			if (!node[letter]) {
+				node[letter] = {
+					[isWord]: false,
+				};
+				nodeCount++;
+			}
+			node = node[letter];
+		}
+
+		// mark the terminal node for this word
+		node[isWord] = true;
+	}
+
+	return nodeCount;
 }
 
-function findWords(input) {
-	// TODO: implement unscrambling/searching logic
-	// for a string of uppercase letters in the
-	// `input` parameter; return the array of
-	// matching words
-	return [];
+function findWords(input,prefix = "",node = dict) {
+	var words = [];
+
+	// is the current node the end of a valid word?
+	if (node[isWord]) {
+		words.push(prefix);
+	}
+
+	for (let i = 0; i < input.length; i++) {
+		let currentLetter = input[i];
+
+		// does the current (sub)trie have a node for this letter?
+		if (node[currentLetter]) {
+			let remainingLetters = [
+				...input.slice(0,i),
+				...input.slice(i + 1)
+			];
+			words.push(
+				...findWords(
+					remainingLetters,
+					prefix + currentLetter,
+					node[currentLetter]
+				)
+			);
+		}
+	}
+
+	words = [ ...(new Set(words)) ];
+	return words;
 }
