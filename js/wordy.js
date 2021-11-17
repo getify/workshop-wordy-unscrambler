@@ -1,3 +1,6 @@
+import deePool from "./external/deePool.mjs";
+
+
 export default {
 	loadWords,
 	findWords
@@ -6,8 +9,13 @@ export default {
 
 // ****************************
 
+var pool = deePool.create(() => []);
 var dict = {};
 var isWord = Symbol("is-word");
+
+// initialize the object pool for the expected
+// maximum number of arrays needed
+pool.grow(23);
 
 function loadWords(wordList) {
 	var nodeCount = 0;
@@ -40,7 +48,21 @@ function loadWords(wordList) {
 }
 
 function findWords(input,prefix = "",node = dict) {
-	var words = [];
+	try {
+		var allWords = findAllWords(input,prefix,node);
+		// return a copy of the words list, so we can
+		// keep the current array in the pool and not leak
+		// instances
+		return [ ...allWords ];
+	}
+	finally {
+		allWords.length = 0;
+		pool.recycle(allWords);
+	}
+}
+
+function findAllWords(input,prefix = "",node = dict) {
+	var words = pool.use();
 
 	// is the current node the end of a valid word?
 	if (node[isWord]) {
@@ -52,20 +74,33 @@ function findWords(input,prefix = "",node = dict) {
 
 		// does the current (sub)trie have a node for this letter?
 		if (node[currentLetter]) {
-			let remainingLetters = [
+			let remainingLetters = pool.use();
+			remainingLetters.push(
 				...input.slice(0,i),
 				...input.slice(i + 1)
-			];
-			words.push(
-				...findWords(
-					remainingLetters,
-					prefix + currentLetter,
-					node[currentLetter]
-				)
 			);
+			let moreWords = findAllWords(
+				remainingLetters,
+				prefix + currentLetter,
+				node[currentLetter]
+			);
+			words.push(...moreWords);
+
+			// reset the temporary arrays and recycle
+			// them back to the pool
+			remainingLetters.length = moreWords.length = 0;
+			pool.recycle(remainingLetters);
+			pool.recycle(moreWords);
 		}
 	}
 
-	words = [ ...(new Set(words)) ];
+	// construct a de-duplicated set of words
+	var wordsSet = new Set(words);
+
+	// empty the previous words list
+	words.length = 0;
+
+	// re-insert the de-duplicated words from the set
+	words.push(...wordsSet);
 	return words;
 }
