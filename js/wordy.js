@@ -1,3 +1,6 @@
+import deePool from "./external/deePool.mjs";
+
+
 export default {
 	loadWords,
 	findWords
@@ -6,8 +9,13 @@ export default {
 
 // ****************************
 
+var pool = deePool.create(() => []);
 var dict = {};
 var isWord = Symbol("is-word");
+
+// initialize the object pool for the expected
+// maximum number of arrays needed
+pool.grow(40);
 
 function loadWords(wordList) {
 	var nodeCount = 0;
@@ -50,16 +58,26 @@ function findWords(input,prefix = "",node = dict,words = new Set()) {
 
 		// does the current (sub)trie have a node for this letter?
 		if (node[currentLetter]) {
-			let remainingLetters = [
+			// check out an array from the pool
+			let remainingLetters = pool.use();
+
+			// use the checked-out array
+			remainingLetters.push(
 				...input.slice(0,i),
 				...input.slice(i + 1)
-			];
+			);
 			findWords(
 				remainingLetters,
 				prefix + currentLetter,
 				node[currentLetter],
 				words
 			);
+
+			// reset checked-out array
+			remainingLetters.length = 0;
+
+			// recycle checked-out array
+			pool.recycle(remainingLetters);
 		}
 	}
 
